@@ -14,5 +14,5 @@ go run .
 
 ## Links
 
-https://geojson.io/
-https://vibhorsingh.com/boundingbox
+- https://geojson.io/
+- https://vibhorsingh.com/boundingbox
