@@ -18,8 +18,8 @@ type GeoJSONFeature struct {
 
 // GeoJSONGeometry represents the geometry portion of a GeoJSON Feature
 type GeoJSONGeometry struct {
-	Type        string           `json:"type"`
-	Coordinates [][][][2]float64 `json:"coordinates"`
+	Type        string         `json:"type"`
+	Coordinates [][][2]float64 `json:"coordinates"`
 }
 
 // GeoJSONFeatureCollection represents a GeoJSON FeatureCollection
@@ -38,11 +38,9 @@ func ConvertGeoJSONToH3Polygons(filePath string) ([]h3.GeoPolygon, error) {
 
 	// Parse the GeoJSON FeatureCollection
 	var fc GeoJSONFeatureCollection
-	log.Printf("Before unmarshal")
 	if err := json.Unmarshal(data, &fc); err != nil {
 		return nil, fmt.Errorf("error unmarshaling GeoJSON: %w", err)
 	}
-	log.Printf("After unmarshal")
 
 	var h3Polygons []h3.GeoPolygon
 
@@ -77,20 +75,16 @@ func convertGeometryToH3Polygon(geometry GeoJSONGeometry) (h3.GeoPolygon, error)
 	}
 
 	// GeoJSON Polygon coordinates are organized as:
-	// [[[exterior ring], [hole1], [hole2], ...]]
+	// [[exterior ring], [hole1], [hole2], ...]
 	// First ring is the exterior boundary, rest are holes
 
 	// Convert exterior ring (first ring)
-	if len(geometry.Coordinates[0]) < 1 {
-		return h3.GeoPolygon{}, fmt.Errorf("polygon has no exterior ring")
-	}
-
-	exterior := convertRingToGeoLoop(geometry.Coordinates[0][0])
+	exterior := convertRingToGeoLoop(geometry.Coordinates[0])
 
 	// Convert holes (if any)
 	var holes []h3.GeoLoop
-	if len(geometry.Coordinates[0]) > 1 {
-		for holeIndex, holeRing := range geometry.Coordinates[0][1:] {
+	if len(geometry.Coordinates) > 1 {
+		for holeIndex, holeRing := range geometry.Coordinates[1:] {
 			if len(holeRing) < 4 {
 				log.Printf("Warning: Hole %d has fewer than 4 points, skipping", holeIndex)
 				continue
@@ -156,7 +150,7 @@ func ProcessPolygonsWithH3(h3Polygons []h3.GeoPolygon, resolution int) error {
 func main() {
 	// Example usage
 	filePath := "/home/nick898/repos/earth-discretization-benchmark/data/mock_polygons.geojson"
-	resolution := 9 // H3 resolution (0-15, higher = smaller cells)
+	resolution := 3 // H3 resolution (0-15, higher = smaller cells)
 
 	// Read GeoJSON and convert to H3 polygons
 	h3Polygons, err := ConvertGeoJSONToH3Polygons(filePath)
