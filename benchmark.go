@@ -155,7 +155,7 @@ func ProcessPolygonsWithH3(h3Polygons []h3.GeoPolygon, resolution int) error {
 
 func main() {
 	// Example usage
-	filePath := "/home/nick898/work/data/mock_polygons.geojson"
+	filePath := "/home/nick898/repos/earth-discretization-benchmark/data/mock_polygons.geojson"
 	resolution := 9 // H3 resolution (0-15, higher = smaller cells)
 
 	// Read GeoJSON and convert to H3 polygons
