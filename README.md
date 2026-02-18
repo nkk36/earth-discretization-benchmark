@@ -1,6 +1,6 @@
 # README
 
-Assuming you are in the root of the repo
+Assuming you are in the root of the repository
 
 ## Generate sample data
 ```
