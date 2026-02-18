@@ -11,3 +11,8 @@ python3 data/generate_mock_polygons.py
 ```
 go run .
 ```
+
+## Links
+
+https://geojson.io/
+https://vibhorsingh.com/boundingbox
