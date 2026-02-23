@@ -1,11 +1,15 @@
 package main
 
 import (
+	"bufio"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"log"
+	"os"
+	"time"
 
+	"github.com/golang/geo/s2"
 	"github.com/uber/h3-go/v4"
 )
 
@@ -122,11 +126,16 @@ func convertRingToGeoLoop(ring [][2]float64) h3.GeoLoop {
 
 // ProcessPolygonsWithH3 is an example function showing how to use the H3 polygons
 func ProcessPolygonsWithH3(h3Polygons []h3.GeoPolygon, resolution int) error {
+	var durations []time.Duration
 	for i, polygon := range h3Polygons {
 		fmt.Printf("\nProcessing Polygon %d\n", i)
 
 		// Example: Polygon to cells (covering the polygon with H3 cells)
+		start := time.Now()
 		cells, err := h3.PolygonToCells(polygon, resolution)
+		duration := time.Since(start)
+		fmt.Printf("Duration (ns): %d\n", duration.Nanoseconds())
+		durations = append(durations, duration)
 		if err != nil {
 			log.Printf("Error converting polygon %d to cells: %v", i, err)
 			continue
@@ -144,12 +153,206 @@ func ProcessPolygonsWithH3(h3Polygons []h3.GeoPolygon, resolution int) error {
 		}
 	}
 
+	fmt.Printf("Durations: %d", durations)
+
 	return nil
 }
 
+// FeatureRegions holds a Feature and its corresponding S2 regions
+type FeatureRegions struct {
+	FeatureID int
+	Regions   []s2.Region
+}
+
+// ConvertGeoJSONToS2Regions reads a GeoJSON file and converts all polygon features to S2 regions
+func ConvertGeoJSONToS2Regions(filePath string) ([]FeatureRegions, error) {
+	// Read the GeoJSON file
+	data, err := ioutil.ReadFile(filePath)
+	if err != nil {
+		return nil, fmt.Errorf("error reading file: %w", err)
+	}
+
+	// Parse the GeoJSON FeatureCollection
+	var fc GeoJSONFeatureCollection
+	if err := json.Unmarshal(data, &fc); err != nil {
+		return nil, fmt.Errorf("error unmarshaling GeoJSON: %w", err)
+	}
+
+	var featureRegionsList []FeatureRegions
+
+	// Convert each feature to S2 regions
+	for i, feature := range fc.Features {
+		if feature.Geometry.Type != "Polygon" {
+			log.Printf("Warning: Feature %d is not a Polygon, skipping", i)
+			continue
+		}
+
+		// Get feature ID from properties if available
+		featureID := i + 1
+		if id, ok := feature.Properties["id"]; ok {
+			if idVal, ok := id.(float64); ok {
+				featureID = int(idVal)
+			}
+		}
+
+		// Convert the GeoJSON polygon to S2 regions
+		regions, err := convertGeometryToS2Regions(feature.Geometry)
+		if err != nil {
+			log.Printf("Warning: Error converting feature %d: %v", i, err)
+			continue
+		}
+
+		featureRegionsList = append(featureRegionsList, FeatureRegions{
+			FeatureID: featureID,
+			Regions:   regions,
+		})
+	}
+
+	return featureRegionsList, nil
+}
+
+// convertGeometryToS2Regions converts a GeoJSON polygon geometry to S2 regions
+func convertGeometryToS2Regions(geometry GeoJSONGeometry) ([]s2.Region, error) {
+	if geometry.Type != "Polygon" {
+		return nil, fmt.Errorf("expected Polygon geometry, got %s", geometry.Type)
+	}
+
+	if len(geometry.Coordinates) == 0 {
+		return nil, fmt.Errorf("polygon has no coordinates")
+	}
+
+	// Convert exterior ring to S2 loop
+	exteriorLoop := convertRingToS2Loop(geometry.Coordinates[0])
+	if exteriorLoop == nil {
+		return nil, fmt.Errorf("failed to create exterior loop")
+	}
+
+	// Build list of all loops (exterior + holes)
+	loops := []*s2.Loop{exteriorLoop}
+
+	// Add holes as additional loops
+	if len(geometry.Coordinates) > 1 {
+		for holeIndex, holeRing := range geometry.Coordinates[1:] {
+			if len(holeRing) < 4 {
+				log.Printf("Warning: Hole %d has fewer than 4 points, skipping", holeIndex)
+				continue
+			}
+
+			holeLoop := convertRingToS2Loop(holeRing)
+			if holeLoop == nil {
+				log.Printf("Warning: Failed to create hole loop %d", holeIndex)
+				continue
+			}
+
+			loops = append(loops, holeLoop)
+		}
+	}
+
+	// Create polygon from all loops
+	polygon := s2.PolygonFromLoops(loops)
+
+	var regions []s2.Region
+	regions = append(regions, polygon)
+
+	return regions, nil
+}
+
+// convertRingToS2Loop converts a GeoJSON ring to an S2 Loop
+func convertRingToS2Loop(ring [][2]float64) *s2.Loop {
+	if len(ring) < 4 {
+		return nil
+	}
+
+	// Convert each [lon, lat] pair to S2 Point
+	// GeoJSON uses [longitude, latitude] order
+	points := make([]s2.Point, 0, len(ring)-1) // -1 because first and last are the same
+
+	for i := 0; i < len(ring)-1; i++ { // Skip the last point (duplicate of first)
+		coord := ring[i]
+		latLng := s2.LatLngFromDegrees(coord[1], coord[0])
+		point := s2.PointFromLatLng(latLng)
+		points = append(points, point)
+	}
+
+	// Create and return the loop
+	loop := s2.LoopFromPoints(points)
+
+	return loop
+}
+
+func saveAllTokens(coverings []s2.CellUnion, filename string) error {
+	file, err := os.Create(filename)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	writer := bufio.NewWriter(file)
+	defer writer.Flush()
+
+	for _, covering := range coverings {
+		for _, cellID := range covering {
+			_, err := writer.WriteString(cellID.ToToken() + "\n")
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
+// ProcessS2Regions demonstrates how to use the S2 regions
+func ProcessS2Regions(featureRegionsList []FeatureRegions) []s2.CellUnion {
+	// Configure RegionCoverer
+	rc := &s2.RegionCoverer{
+		MinLevel: 10,
+		MaxLevel: 16,
+		MaxCells: 12,
+		LevelMod: 1,
+	}
+	var grouped []s2.CellUnion
+	var durations []time.Duration
+
+	for _, fr := range featureRegionsList {
+		fmt.Printf("\nFeature %d has %d region(s)\n", fr.FeatureID, len(fr.Regions))
+
+		for _, region := range fr.Regions {
+			// Get covering
+			levelCounts := make(map[int]int)
+			start := time.Now()
+			covering := rc.Covering(region)
+			duration := time.Since(start)
+			fmt.Printf("Duration (ns): %d\n", duration.Nanoseconds())
+			durations = append(durations, duration)
+			grouped = append(grouped, covering)
+
+			for _, cell := range covering {
+				level := cell.Level()
+				levelCounts[level]++
+			}
+
+			for level, levelCount := range levelCounts {
+				fmt.Printf("Level: %d; Level Count: %d\n", level, levelCount)
+			}
+		}
+	}
+	fmt.Printf("Durations: %d", durations)
+	return grouped
+}
+
 func main() {
+
 	// Example usage
 	filePath := "/home/nick898/repos/earth-discretization-benchmark/data/mock_polygons.geojson"
+
+	// H3 ==========================================================
+	// H3 ==========================================================
+	// H3 ==========================================================
+	// H3 ==========================================================
+	// H3 ==========================================================
+
+	fmt.Printf("H3 ================================================\n")
 	resolution := 3 // H3 resolution (0-15, higher = smaller cells)
 
 	// Read GeoJSON and convert to H3 polygons
@@ -164,4 +367,25 @@ func main() {
 	if err := ProcessPolygonsWithH3(h3Polygons, resolution); err != nil {
 		log.Fatalf("Error processing polygons: %v", err)
 	}
+
+	// S2 ==========================================================
+	// S2 ==========================================================
+	// S2 ==========================================================
+	// S2 ==========================================================
+	// S2 ==========================================================
+
+	fmt.Printf("\nS2 ================================================\n")
+	// Read GeoJSON and convert to S2 regions
+	featureRegionsList, err := ConvertGeoJSONToS2Regions(filePath)
+	if err != nil {
+		log.Fatalf("Error converting GeoJSON to S2 regions: %v", err)
+	}
+
+	fmt.Printf("Successfully converted %d features to S2 regions\n", len(featureRegionsList))
+
+	// Process the regions
+	coverings := ProcessS2Regions(featureRegionsList)
+
+	saveAllTokens(coverings, "/home/nick898/repos/earth-discretization-benchmark/data/s2_cell_ids.txt")
+
 }

@@ -1,2 +1,4 @@
+github.com/golang/geo v0.0.0-20260129164528-943061e2742c h1:ysO2h2Odnl1AJM1I2Lm/fa6JvO0pECMSt2CwBaa+ITo=
+github.com/golang/geo v0.0.0-20260129164528-943061e2742c/go.mod h1:Mymr9kRGDc64JPr03TSZmuIBODZ3KyswLzm1xL0HFA8=
 github.com/uber/h3-go/v4 v4.4.0 h1:sCHcZHvIKEbdt4rY5ZVs2HDNlCy2wXeJ98vAbz+iLok=
 github.com/uber/h3-go/v4 v4.4.0/go.mod h1:c94kwXZNHVWkZGIN+y9dV81YVEttypqJpOjsmXGr68Y=
