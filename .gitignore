@@ -1,2 +1,4 @@
-data/mock_polygons_complex.geojson
+data/mock_polygons.geojson
+data/mock_polygons_1.geojson
+output/*
 data/s2_cell_ids.txt

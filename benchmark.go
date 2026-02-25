@@ -2,11 +2,13 @@ package main
 
 import (
 	"bufio"
+	"encoding/csv"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"log"
 	"os"
+	"strconv"
 	"time"
 
 	"github.com/golang/geo/s2"
@@ -125,37 +127,37 @@ func convertRingToGeoLoop(ring [][2]float64) h3.GeoLoop {
 }
 
 // ProcessPolygonsWithH3 is an example function showing how to use the H3 polygons
-func ProcessPolygonsWithH3(h3Polygons []h3.GeoPolygon, resolution int) error {
+func ProcessPolygonsWithH3(h3Polygons []h3.GeoPolygon, resolution int, printStuff bool) []time.Duration {
 	var durations []time.Duration
 	for i, polygon := range h3Polygons {
-		fmt.Printf("\nProcessing Polygon %d\n", i)
+		if printStuff {
+			fmt.Printf("\nProcessing Polygon %d\n", i)
+		}
 
 		// Example: Polygon to cells (covering the polygon with H3 cells)
 		start := time.Now()
 		cells, err := h3.PolygonToCells(polygon, resolution)
 		duration := time.Since(start)
-		fmt.Printf("Duration (ns): %d\n", duration.Nanoseconds())
 		durations = append(durations, duration)
 		if err != nil {
 			log.Printf("Error converting polygon %d to cells: %v", i, err)
 			continue
 		}
 
-		fmt.Printf("Polygon %d covers %d H3 cells at resolution %d\n", i, len(cells), resolution)
+		if printStuff {
+			fmt.Printf("Polygon %d covers %d H3 cells at resolution %d\n", i, len(cells), resolution)
 
-		// Example: Get some cell information
-		if len(cells) > 0 {
-			fmt.Printf("  First few cell IDs: ")
-			for j := 0; j < 3 && j < len(cells); j++ {
-				fmt.Printf("%v ", cells[j])
+			// Example: Get some cell information
+			if len(cells) > 0 {
+				fmt.Printf("  First few cell IDs: ")
+				for j := 0; j < 3 && j < len(cells); j++ {
+					fmt.Printf("%v ", cells[j])
+				}
+				fmt.Println()
 			}
-			fmt.Println()
 		}
 	}
-
-	fmt.Printf("Durations: %d", durations)
-
-	return nil
+	return durations
 }
 
 // FeatureRegions holds a Feature and its corresponding S2 regions
@@ -280,6 +282,34 @@ func convertRingToS2Loop(ring [][2]float64) *s2.Loop {
 	return loop
 }
 
+func saveFloat64ToCSV(filename string, header string, data []float64) error {
+	file, err := os.Create(filename)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	writer := csv.NewWriter(file)
+	defer writer.Flush()
+
+	// Write header
+	if header != "" {
+		if err := writer.Write([]string{header}); err != nil {
+			return err
+		}
+	}
+
+	// Write each float as a row
+	for _, v := range data {
+		row := []string{strconv.FormatFloat(v, 'f', -1, 64)}
+		if err := writer.Write(row); err != nil {
+			return err
+		}
+	}
+
+	return writer.Error()
+}
+
 func saveAllTokens(coverings []s2.CellUnion, filename string) error {
 	file, err := os.Create(filename)
 	if err != nil {
@@ -303,19 +333,22 @@ func saveAllTokens(coverings []s2.CellUnion, filename string) error {
 }
 
 // ProcessS2Regions demonstrates how to use the S2 regions
-func ProcessS2Regions(featureRegionsList []FeatureRegions) []s2.CellUnion {
+func ProcessS2Regions(featureRegionsList []FeatureRegions,
+	minLevel int, maxLevel int, maxCells int, levelMod int, printStuff bool) []time.Duration {
 	// Configure RegionCoverer
 	rc := &s2.RegionCoverer{
-		MinLevel: 10,
-		MaxLevel: 16,
-		MaxCells: 12,
-		LevelMod: 1,
+		MinLevel: minLevel,
+		MaxLevel: maxLevel,
+		MaxCells: maxCells,
+		LevelMod: levelMod,
 	}
 	var grouped []s2.CellUnion
 	var durations []time.Duration
 
 	for _, fr := range featureRegionsList {
-		fmt.Printf("\nFeature %d has %d region(s)\n", fr.FeatureID, len(fr.Regions))
+		if printStuff {
+			fmt.Printf("\nFeature %d has %d region(s)\n", fr.FeatureID, len(fr.Regions))
+		}
 
 		for _, region := range fr.Regions {
 			// Get covering
@@ -323,7 +356,6 @@ func ProcessS2Regions(featureRegionsList []FeatureRegions) []s2.CellUnion {
 			start := time.Now()
 			covering := rc.Covering(region)
 			duration := time.Since(start)
-			fmt.Printf("Duration (ns): %d\n", duration.Nanoseconds())
 			durations = append(durations, duration)
 			grouped = append(grouped, covering)
 
@@ -332,50 +364,76 @@ func ProcessS2Regions(featureRegionsList []FeatureRegions) []s2.CellUnion {
 				levelCounts[level]++
 			}
 
-			for level, levelCount := range levelCounts {
-				fmt.Printf("Level: %d; Level Count: %d\n", level, levelCount)
+			if printStuff {
+				for level, levelCount := range levelCounts {
+					fmt.Printf("Level: %d; Level Count: %d\n", level, levelCount)
+				}
 			}
 		}
 	}
-	fmt.Printf("Durations: %d", durations)
-	return grouped
+	return durations
+}
+
+func saveToCSV(filename string, header string, data []time.Duration) error {
+	file, err := os.Create(filename)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	writer := csv.NewWriter(file)
+	defer writer.Flush()
+
+	// Write header
+	if err := writer.Write([]string{header}); err != nil {
+		return err
+	}
+
+	// Write data rows
+	for _, value := range data {
+		row := []string{strconv.FormatInt(value.Nanoseconds(), 10)}
+		if err := writer.Write(row); err != nil {
+			return err
+		}
+	}
+
+	return writer.Error()
+}
+
+func durationsToInt64(durations []time.Duration) []int64 {
+	ns := make([]int64, len(durations)) // preallocate slice
+	for i, d := range durations {
+		ns[i] = d.Nanoseconds()
+	}
+	return ns
+}
+
+func averageInt64(nums []int64) float64 {
+	if len(nums) == 0 {
+		return 0 // avoid division by zero
+	}
+
+	var sum int64
+	for _, v := range nums {
+		sum += v
+	}
+
+	return float64(sum) / float64(len(nums))
 }
 
 func main() {
 
-	// Example usage
+	// Read data into H3 objects and S2 objects
 	filePath := "/home/nick898/repos/earth-discretization-benchmark/data/mock_polygons.geojson"
 
-	// H3 ==========================================================
-	// H3 ==========================================================
-	// H3 ==========================================================
-	// H3 ==========================================================
-	// H3 ==========================================================
-
-	fmt.Printf("H3 ================================================\n")
-	resolution := 3 // H3 resolution (0-15, higher = smaller cells)
-
-	// Read GeoJSON and convert to H3 polygons
+	// H3
 	h3Polygons, err := ConvertGeoJSONToH3Polygons(filePath)
 	if err != nil {
 		log.Fatalf("Error converting GeoJSON to H3 polygons: %v", err)
 	}
-
 	fmt.Printf("Successfully converted %d polygons to H3 GeoPolygon format\n", len(h3Polygons))
 
-	// Process the polygons with H3
-	if err := ProcessPolygonsWithH3(h3Polygons, resolution); err != nil {
-		log.Fatalf("Error processing polygons: %v", err)
-	}
-
-	// S2 ==========================================================
-	// S2 ==========================================================
-	// S2 ==========================================================
-	// S2 ==========================================================
-	// S2 ==========================================================
-
-	fmt.Printf("\nS2 ================================================\n")
-	// Read GeoJSON and convert to S2 regions
+	// S2
 	featureRegionsList, err := ConvertGeoJSONToS2Regions(filePath)
 	if err != nil {
 		log.Fatalf("Error converting GeoJSON to S2 regions: %v", err)
@@ -383,9 +441,46 @@ func main() {
 
 	fmt.Printf("Successfully converted %d features to S2 regions\n", len(featureRegionsList))
 
-	// Process the regions
-	coverings := ProcessS2Regions(featureRegionsList)
+	// H3 ==========================================================
+	// H3 ==========================================================
+	// H3 ==========================================================
+	// H3 ==========================================================
+	// H3 ==========================================================
 
-	saveAllTokens(coverings, "/home/nick898/repos/earth-discretization-benchmark/data/s2_cell_ids.txt")
+	fmt.Printf("H3 Experiments ================================================\n")
+
+	// Experiments
+	averages := make([]float64, 16) // preallocate slice
+	for i := 0; i <= 15; i++ {
+		fmt.Printf("\nResolution: %d\n", i)
+
+		resolution := i // H3 resolution (0-15, higher = smaller cells)
+		output := fmt.Sprintf("/home/nick898/repos/earth-discretization-benchmark/output/durations-h3-res%d.csv", i)
+		print := false
+		durations := ProcessPolygonsWithH3(h3Polygons, resolution, print)
+		saveToCSV(output, "duration (ns)", durations)
+		averages = append(averages, averageInt64(durationsToInt64(durations)))
+		saveFloat64ToCSV("/home/nick898/repos/earth-discretization-benchmark/output/h3-averages.csv", "avg_duration_ns", averages)
+	}
+
+	// S2 ==========================================================
+	// S2 ==========================================================
+	// S2 ==========================================================
+	// S2 ==========================================================
+	// S2 ==========================================================
+
+	fmt.Printf("\nS2 Experiments ================================================\n")
+
+	for i := 0; i <= 30; i++ {
+		// Experiment 1
+		output := fmt.Sprintf("/home/nick898/repos/earth-discretization-benchmark/output/durations-s2-res%d.csv", i)
+		minLevel := i
+		maxLevel := i
+		maxCells := 8 // Default value used; gives a reasonable tradeoff
+		levelMod := 1
+		print := false
+		durations := ProcessS2Regions(featureRegionsList, minLevel, maxLevel, maxCells, levelMod, print)
+		saveToCSV(output, "duration (ns)", durations)
+	}
 
 }

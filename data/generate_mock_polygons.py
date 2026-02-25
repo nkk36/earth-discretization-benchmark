@@ -9,7 +9,8 @@ def generate_random_polygon(
     min_vertices: int = 4,
     max_vertices: int = 6,
     include_circles: bool = True,
-    include_ovals: bool = True
+    include_ovals: bool = True,
+    seed: int = 1
 ) -> Tuple[List[List[List[float]]], str]:
     """
     Generate a random polygon of varying shapes on Earth in GeoJSON format.
@@ -28,6 +29,7 @@ def generate_random_polygon(
     """
     
     # Keep trying until we get a valid polygon that doesn't wrap
+    # random.seed(seed)
     max_attempts = 100
     for attempt in range(max_attempts):
         # Random starting point (latitude, longitude)
@@ -195,7 +197,8 @@ def generate_mock_polygons(
     min_vertices: int = 4,
     max_vertices: int = 6,
     include_circles: bool = True,
-    include_ovals: bool = True
+    include_ovals: bool = True,
+    seed: int = 1
 ) -> Dict[str, Any]:
     """
     Generate multiple mock polygons of varying shapes as a GeoJSON FeatureCollection.
@@ -222,7 +225,8 @@ def generate_mock_polygons(
             min_vertices=min_vertices,
             max_vertices=max_vertices,
             include_circles=include_circles,
-            include_ovals=include_ovals
+            include_ovals=include_ovals,
+            seed = seed
         )
         
         feature = {
@@ -296,13 +300,14 @@ if __name__ == "__main__":
     # print("\nExported to 'mock_polygons_complex.geojson'\n")
 
     # Inputs for generating sample polygons
-    num_polygons = 1
+    num_polygons = 1000
     min_size_km = 1
     max_size_km = 315
     min_vertices = 4
     max_vertices = 4
     circles = True
     ovals = True
+    seed = 123
         
     # Generate samples
     geojson = generate_mock_polygons(
@@ -312,7 +317,8 @@ if __name__ == "__main__":
         min_vertices = min_vertices, 
         max_vertices = max_vertices,
         include_circles = circles, 
-        include_ovals = ovals
+        include_ovals = ovals,
+        seed = seed
         )
     
     print(f"Generated {num_polygons} random polygons (GeoJSON format):\n")
