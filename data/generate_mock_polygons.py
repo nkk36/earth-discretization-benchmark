@@ -300,7 +300,7 @@ if __name__ == "__main__":
     # print("\nExported to 'mock_polygons_complex.geojson'\n")
 
     # Inputs for generating sample polygons
-    num_polygons = 1000
+    num_polygons = 250
     min_size_km = 1
     max_size_km = 315
     min_vertices = 4
