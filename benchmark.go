@@ -440,39 +440,64 @@ func main() {
 	}
 	fmt.Printf("Successfully converted %d features to S2 regions\n", len(featureRegionsList))
 
-	fmt.Printf("H3 Experiments ================================================\n")
-	maxResolution := 8 // H3 resolution (0-15, higher = smaller cells)
-	averages := make([]float64, 0, maxResolution+1)
-	for i := 0; i <= maxResolution; i++ {
-		fmt.Printf("\nResolution: %d\n", i)
+	// fmt.Printf("H3 Experiments ================================================\n")
+	// maxResolution := 8 // H3 resolution (0-15, higher = smaller cells)
+	// averages := make([]float64, 0, maxResolution+1)
+	// for i := 0; i <= maxResolution; i++ {
+	// 	fmt.Printf("\nResolution: %d\n", i)
+
+	// 	// Inputs
+	// 	resolution := i
+	// 	output := fmt.Sprintf("/home/nick898/repos/earth-discretization-benchmark/output/durations-h3-res%d.csv", i)
+	// 	print := false
+
+	// 	// Test interections
+	// 	durations := ProcessPolygonsWithH3(h3Polygons, resolution, print)
+
+	// 	// Save results
+	// 	saveToCSV(output, "duration (ns)", durations)
+	// 	h3avg := averageInt64(durationsToInt64(durations))
+	// 	fmt.Printf("\nAverage: %v\n", h3avg)
+	// 	averages = append(averages, h3avg)
+	// }
+	// saveFloat64ToCSV("/home/nick898/repos/earth-discretization-benchmark/output/h3-averages.csv", "avg_duration_ns", averages)
+
+	// fmt.Printf("\nS2 Experiments ================================================\n")
+	// // Fix the max cells and set minLevel = maxLevel and vary the levels
+	// maxResolution = 13 // Levels 0 - 30; level 13 has average area of 1.27 km^2
+	// s2averages := make([]float64, 0, maxResolution+1)
+	// for i := 0; i <= maxResolution; i++ {
+	// 	fmt.Printf("\nLevel: %d\n", i)
+
+	// 	// Inputs
+	// 	output := fmt.Sprintf("/home/nick898/repos/earth-discretization-benchmark/output/durations-s2-res%d.csv", i)
+	// 	minLevel := i
+	// 	maxLevel := i
+	// 	maxCells := 8 // Default value used; gives a reasonable tradeoff between the number of cells used and the accuracy of the approximation based on source code comments
+	// 	levelMod := 1
+	// 	print := false
+
+	// 	// Test intersections
+	// 	durations := ProcessS2Regions(featureRegionsList, minLevel, maxLevel, maxCells, levelMod, print)
+
+	// 	// Save results
+	// 	saveToCSV(output, "duration (ns)", durations)
+	// 	s2avg := averageInt64(durationsToInt64(durations))
+	// 	fmt.Printf("\nAverage: %v\n", s2avg)
+	// 	s2averages = append(s2averages, s2avg)
+	// }
+	// saveFloat64ToCSV("/home/nick898/repos/earth-discretization-benchmark/output/s2-averages.csv", "avg_duration_ns", s2averages)
+
+	// Fix the level and vary max cells
+	maxCells := 1000
+	s2averages := make([]float64, 0, maxCells)
+	for i := 1; i <= maxCells; i = i + 50 {
+		fmt.Printf("\nMax Cells: %d\n", i)
 
 		// Inputs
-		resolution := i
-		output := fmt.Sprintf("/home/nick898/repos/earth-discretization-benchmark/output/durations-h3-res%d.csv", i)
-		print := false
-
-		// Test interections
-		durations := ProcessPolygonsWithH3(h3Polygons, resolution, print)
-
-		// Save results
-		saveToCSV(output, "duration (ns)", durations)
-		h3avg := averageInt64(durationsToInt64(durations))
-		fmt.Printf("\nAverage: %v\n", h3avg)
-		averages = append(averages, h3avg)
-	}
-	saveFloat64ToCSV("/home/nick898/repos/earth-discretization-benchmark/output/h3-averages.csv", "avg_duration_ns", averages)
-
-	fmt.Printf("\nS2 Experiments ================================================\n")
-	maxResolution = 13 // Levels 0 - 30; level 13 has average area of 1.27 km^2
-	s2averages := make([]float64, 0, maxResolution+1)
-	for i := 0; i <= maxResolution; i++ {
-		fmt.Printf("\nLevel: %d\n", i)
-
-		// Inputs
-		output := fmt.Sprintf("/home/nick898/repos/earth-discretization-benchmark/output/durations-s2-res%d.csv", i)
-		minLevel := i
-		maxLevel := i
-		maxCells := 8 // Default value used; gives a reasonable tradeoff
+		// output := fmt.Sprintf("/home/nick898/repos/earth-discretization-benchmark/output/durations-s2-cells-%d.csv", i)
+		minLevel := 5
+		maxLevel := 13
 		levelMod := 1
 		print := false
 
@@ -480,11 +505,11 @@ func main() {
 		durations := ProcessS2Regions(featureRegionsList, minLevel, maxLevel, maxCells, levelMod, print)
 
 		// Save results
-		saveToCSV(output, "duration (ns)", durations)
+		// saveToCSV(output, "duration (ns)", durations)
 		s2avg := averageInt64(durationsToInt64(durations))
 		fmt.Printf("\nAverage: %v\n", s2avg)
 		s2averages = append(s2averages, s2avg)
 	}
-	saveFloat64ToCSV("/home/nick898/repos/earth-discretization-benchmark/output/s2-averages.csv", "avg_duration_ns", s2averages)
+	// saveFloat64ToCSV("/home/nick898/repos/earth-discretization-benchmark/output/s2-averages-maxcells.csv", "avg_duration_ns", s2averages)
 
 }
