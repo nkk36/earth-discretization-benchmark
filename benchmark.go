@@ -462,6 +462,26 @@ func averageInt64(nums []int64) float64 {
 	return float64(sum) / float64(len(nums))
 }
 
+func h3Intersection(filePath string) {
+	h3Polygons, err := ConvertGeoJSONToH3Polygons(filePath)
+	if err != nil {
+		log.Fatalf("Error converting GeoJSON to H3 polygons: %v", err)
+	}
+	fmt.Printf("Successfully converted %d polygons to H3 GeoPolygon format\n", len(h3Polygons))
+
+	cells1, _ := h3.PolygonToCells(h3Polygons[0], 3)
+	cells2, _ := h3.PolygonToCellsExperimental(h3Polygons[0], 3, h3.ContainmentCenter, 5)
+	cells3, _ := h3.PolygonToCellsExperimental(h3Polygons[0], 3, h3.ContainmentFull, 5)
+	cells4, _ := h3.PolygonToCellsExperimental(h3Polygons[0], 3, h3.ContainmentOverlapping, 5)
+	cells5, _ := h3.PolygonToCellsExperimental(h3Polygons[0], 3, h3.ContainmentOverlappingBbox, 5)
+	fmt.Printf("Number of Cells (Non-Experimental): %d\n", len(cells1))
+	fmt.Printf("Number of Cells (Experimental - ContainmentCenter): %d\n", len(cells2))
+	fmt.Printf("Number of Cells (Experimental - ContainmentFull): %d\n", len(cells3))
+	fmt.Printf("Number of Cells (Experimental - ContainmentOverlapping): %d\n", len(cells4))
+	fmt.Printf("Number of Cells (Experimental - ContainmentOverlappingBbox): %d\n", len(cells5))
+	fmt.Printf("Cell ID (Experimental - ContainmentOverlapping): %v\n", h3.CellToString(cells4[0]))
+}
+
 func h3Experiments(filePath string) {
 
 	// H3
@@ -605,7 +625,8 @@ func s2Experiments(filePath string) {
 }
 
 func main() {
-	filePath := "/home/nick898/repos/earth-discretization-benchmark/data/mock_polygons.geojson"
+	// filePath := "/home/nick898/repos/earth-discretization-benchmark/data/mock_polygons.geojson"
 	// h3Experiments(filePath)
-	s2Experiments(filePath)
+	// s2Experiments(filePath)
+	h3Intersection("/home/nick898/repos/earth-discretization-benchmark/data/example_polygon_h3_intersection.geojson")
 }
