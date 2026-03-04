@@ -532,8 +532,8 @@ func s2VaryMaxCells(featureRegions []FeatureRegions) {
 func s2Caching(featureRegions []FeatureRegions) {
 	// Caching?
 	count := 1
-	stop := 5
-	level := 10
+	stop := 2
+	level := 2
 	for {
 		fmt.Printf("\nLevel: %d\n", level)
 
@@ -548,6 +548,7 @@ func s2Caching(featureRegions []FeatureRegions) {
 		durations := ProcessS2Regions(featureRegions, minLevel, maxLevel, maxCells, levelMod, print)
 
 		// Print results
+		saveToCSV("/home/nick898/repos/earth-discretization-benchmark/output/s2-caching-res2.csv", "durationNs", durations)
 		s2avg := averageInt64(durationsToInt64(durations))
 		fmt.Printf("\nAverage: %v\n", s2avg)
 		count += 1
@@ -598,13 +599,13 @@ func s2Experiments(filePath string) {
 	}
 	fmt.Printf("Successfully converted %d features to S2 regions\n", len(featureRegions))
 
-	s2VaryLevels(featureRegions)
-	// s2Caching(featureRegions)
+	// s2VaryLevels(featureRegions)
+	s2Caching(featureRegions)
 	// s2VaryMaxCells(featureRegions)
 }
 
 func main() {
 	filePath := "/home/nick898/repos/earth-discretization-benchmark/data/mock_polygons.geojson"
-	h3Experiments(filePath)
+	// h3Experiments(filePath)
 	s2Experiments(filePath)
 }
